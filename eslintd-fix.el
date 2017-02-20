@@ -123,42 +123,44 @@ function."
 (defun eslintd-fix ()
   "Replace buffer contents with \"fixed\" code from eslint_d."
   (interactive)
-  (when (file-executable-p eslintd-fix-executable)
-    (let ((current-point (point))
-          (line (count-screen-lines (window-start) (point)))
-          (command (concat
-                    "("
-                    " set -o pipefail;"
-                    " original=$(cat);"
-                    eslintd-fix-executable
-                    " --stdin"
-                    " --fix-to-stdout"
-                    " --stdin-filename " buffer-file-name
-                    " <<<\"$original\""
-                    " | ( diff -n <(echo \"$original\") -; true )"
-                    " )"))
-          (buffer (current-buffer))
-          (text (buffer-substring-no-properties (point-min) (point-max))))
-      (with-temp-buffer
-        (insert text)
-        (when (zerop
-               (shell-command-on-region
-                ;; Region
-                (point-min)
-                (point-max)
-                ;; Command
-                command
-                ;; Output to current buffer
-                t
-                ;; Replace buffer
-                t
-                ;; Error buffer name
-                "*eslintd-fix error*"
-                ;; Display errors
-                t))
-          (let ((patch-buffer (current-buffer)))
-            (with-current-buffer buffer
-              (eslintd-fix--apply-rcs-patch patch-buffer))))))))
+  (let ((executable (executable-find eslintd-fix-executable)))
+    (when (and executable
+               (file-executable-p executable))
+      (let ((current-point (point))
+            (line (count-screen-lines (window-start) (point)))
+            (command (concat
+                      "("
+                      " set -o pipefail;"
+                      " original=$(cat);"
+                      executable
+                      " --stdin"
+                      " --fix-to-stdout"
+                      " --stdin-filename " buffer-file-name
+                      " <<<\"$original\""
+                      " | ( diff -n <(echo \"$original\") -; true )"
+                      " )"))
+            (buffer (current-buffer))
+            (text (buffer-substring-no-properties (point-min) (point-max))))
+        (with-temp-buffer
+          (insert text)
+          (when (zerop
+                 (shell-command-on-region
+                  ;; Region
+                  (point-min)
+                  (point-max)
+                  ;; Command
+                  command
+                  ;; Output to current buffer
+                  t
+                  ;; Replace buffer
+                  t
+                  ;; Error buffer name
+                  "*eslintd-fix error*"
+                  ;; Display errors
+                  t))
+            (let ((patch-buffer (current-buffer)))
+              (with-current-buffer buffer
+                (eslintd-fix--apply-rcs-patch patch-buffer)))))))))
 
 ;;;###autoload
 (define-minor-mode eslintd-fix-mode

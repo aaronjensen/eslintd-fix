@@ -1,4 +1,4 @@
-# eslintd-fix [![MELPA](https://melpa.org/packages/eslintd-fix.svg)](https://melpa.org/#/eslintd-fix)
+# eslintd-fix [![MELPA](https://melpa.org/packages/eslintd-fix-badge.svg)](https://melpa.org/#/eslintd-fix)
 
 Minor-mode to automatically fix javascript with [eslint_d][].
 

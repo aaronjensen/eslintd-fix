@@ -120,6 +120,16 @@ function."
              (t
               (error "Invalid rcs patch or internal error in eslintd-fix--apply-rcs-patch")))))))))
 
+(defun eslintd-fix--compatible-versionp ()
+  (let ((executable (executable-find eslintd-fix-executable)))
+    (and executable
+         (file-executable-p executable)
+         (zerop (shell-command (concat
+                                "("
+                                executable
+                                " --help | grep -qe '--fix-to-stdout'"
+                                ")"))))))
+
 (defun eslintd-fix ()
   "Replace buffer contents with \"fixed\" code from eslint_d."
   (interactive)
@@ -167,7 +177,9 @@ function."
   "Use eslint_d to automatically fix javascript before saving."
   :lighter " fix"
   (if eslintd-fix-mode
-      (add-hook 'before-save-hook #'eslintd-fix nil t)
+      (if (eslintd-fix--compatible-versionp)
+          (add-hook 'before-save-hook #'eslintd-fix nil t)
+        (message "eslintd-fix: Could not find eslint_d or it does not have the `--fix-to-stdout' feature."))
     (remove-hook 'before-save-hook #'eslintd-fix t)))
 
 (provide 'eslintd-fix)

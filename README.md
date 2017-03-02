@@ -1,6 +1,6 @@
 # eslintd-fix [![MELPA](https://melpa.org/packages/eslintd-fix-badge.svg)](https://melpa.org/#/eslintd-fix)
 
-Minor-mode to automatically fix javascript with [eslint_d][].
+Minor-mode to automatically fix javascript with [eslint_d][]. Built with a focus on speed, you will typically barely notice a delay when saving, if at all. 
 
 ## Installation
 

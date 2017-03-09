@@ -124,7 +124,7 @@ function."
   (let ((executable (executable-find eslintd-fix-executable)))
     (and executable
          (file-executable-p executable)
-         (zerop (shell-command (concat
+         (zerop (call-process-shell-command (concat
                                 "("
                                 executable
                                 " --help | grep -qe '--fix-to-stdout'"
@@ -179,6 +179,7 @@ function."
   (if eslintd-fix-mode
       (if (eslintd-fix--compatible-versionp)
           (add-hook 'before-save-hook #'eslintd-fix nil t)
+        (setq eslintd-fix-mode nil)
         (message "eslintd-fix: Could not find eslint_d or it does not have the `--fix-to-stdout' feature."))
     (remove-hook 'before-save-hook #'eslintd-fix t)))
 

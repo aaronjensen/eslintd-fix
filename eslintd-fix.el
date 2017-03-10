@@ -47,6 +47,13 @@
   :group 'eslintd-fix
   :type 'string)
 
+(defcustom eslintd-fix-preprocess-command nil
+  "The shell command to pipe the buffer into before piping to
+  eslintd. This is useful for integrating `prettier', for
+  example. It is ignored if `nil'."
+  :group 'eslintd-fix
+  :type 'string)
+
 (defun eslintd-fix--goto-line (line)
   "Move point to LINE."
   (goto-char (point-min))
@@ -142,11 +149,12 @@ function."
                       "("
                       " set -o pipefail;"
                       " original=$(cat);"
+                      "<<<\"$original\" "
+                      (when eslintd-fix-preprocess-command (concat eslintd-fix-preprocess-command " | "))
                       executable
                       " --stdin"
                       " --fix-to-stdout"
                       " --stdin-filename " buffer-file-name
-                      " <<<\"$original\""
                       " | ( diff -n <(echo \"$original\") -; true )"
                       " )"))
             (buffer (current-buffer))

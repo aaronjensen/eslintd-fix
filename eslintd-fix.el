@@ -4,7 +4,7 @@
 
 ;; Author: Aaron Jensen <aaronjensen@gmail.com>
 ;; URL: https://github.com/aaronjensen/eslintd-fix
-;; Version: 0.1.0
+;; Version: 1.0.0
 
 ;;; Commentary:
 

@@ -54,6 +54,9 @@
   :group 'eslintd-fix
   :type 'string)
 
+(defvar-local eslintd-fix--verified nil
+  "Set to t if eslintd has been verified as working for this buffer.")
+
 (defun eslintd-fix--goto-line (line)
   "Move point to LINE."
   (goto-char (point-min))
@@ -137,11 +140,32 @@ function."
                                 " --help | grep -qe '--fix-to-stdout'"
                                 ")"))))))
 
+(defun eslintd-fix--eslint-config-foundp ()
+  (let ((executable (executable-find eslintd-fix-executable))
+        (filename (buffer-file-name)))
+    (with-temp-buffer
+      (and filename
+           (zerop
+            (call-process executable nil t nil "--print-config" filename))))))
+
+(defun eslintd-fix--verify ()
+  (or eslintd-fix--verified
+      (cond ((not (eslintd-fix--compatible-versionp))
+             (eslintd-fix-mode -1)
+             (message "eslintd-fix: Could not find eslint_d or it does not have the `--fix-to-stdout' feature.")
+             nil)
+            ((not (eslintd-fix--eslint-config-foundp))
+             (eslintd-fix-mode -1)
+             (message "eslintd-fix: Could not find an eslint config file.")
+             nil)
+            (t (setq eslintd-fix--verified t)))))
+
 (defun eslintd-fix ()
   "Replace buffer contents with \"fixed\" code from eslint_d."
   (interactive)
   (let ((executable (executable-find eslintd-fix-executable)))
-    (when (and executable
+    (when (and (eslintd-fix--verify)
+               executable
                (file-executable-p executable))
       (let ((current-point (point))
             (line (count-screen-lines (window-start) (point)))
@@ -185,10 +209,8 @@ function."
   "Use eslint_d to automatically fix javascript before saving."
   :lighter " fix"
   (if eslintd-fix-mode
-      (if (eslintd-fix--compatible-versionp)
-          (add-hook 'before-save-hook #'eslintd-fix nil t)
-        (setq eslintd-fix-mode nil)
-        (message "eslintd-fix: Could not find eslint_d or it does not have the `--fix-to-stdout' feature."))
+      (add-hook 'before-save-hook #'eslintd-fix nil t)
+    (setq eslintd-fix--verified nil)
     (remove-hook 'before-save-hook #'eslintd-fix t)))
 
 (provide 'eslintd-fix)

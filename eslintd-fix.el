@@ -182,9 +182,10 @@ function."
                       " | ( diff -n <(echo \"$original\") -; true )"
                       " )"))
             (buffer (current-buffer))
-            (text (buffer-substring-no-properties (point-min) (point-max))))
+            (buffer-min (point-min))
+            (buffer-max (point-max)))
         (with-temp-buffer
-          (insert text)
+          (insert-buffer-substring buffer buffer-min buffer-max)
           (when (zerop
                  (shell-command-on-region
                   ;; Region

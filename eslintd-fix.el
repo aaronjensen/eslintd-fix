@@ -167,9 +167,7 @@ function."
     (when (and (eslintd-fix--verify)
                executable
                (file-executable-p executable))
-      (let ((current-point (point))
-            (line (count-screen-lines (window-start) (point)))
-            (command (concat
+      (let ((command (concat
                       "("
                       " set -o pipefail;"
                       " original=$(cat);"

@@ -130,9 +130,13 @@ Return t if it successfully starts."
                   (buffer (process-get connection 'eslintd-fix-buffer)))
        (message "outputting: %s" output-file)
        (with-current-buffer output-buffer
-         (write-file output-file))
-       (with-current-buffer buffer
-         (insert-file-contents output-file nil nil nil t))
+         (goto-char (point-max))
+         (beginning-of-line)
+         ;; Do not replace contents if there was an error
+         (unless (looking-at "# exit [[:digit:]]+")
+           (write-file output-file)
+           (with-current-buffer buffer
+             (insert-file-contents output-file nil nil nil t))))
        (kill-buffer output-buffer)
        (delete-file output-file)))))
 

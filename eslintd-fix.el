@@ -166,18 +166,18 @@ cached connection if it is already open."
   "Wait for CONNECTION to connect.
 
 Return the CONNECTION if, after waiting it is open, otherwise nil."
-  (while (eq (process-status connection) 'connect)
-    (sleep-for 0.01))
-  (when (eq (process-status connection) 'open)
-    connection))
+  (when connection
+    (while (eq (process-status connection) 'connect)
+      (sleep-for 0.01))
+    (when (eq (process-status connection) 'open)
+      connection)))
 
 (defun eslintd-fix--get-connection ()
   "Return an open connection to eslint_d.
 
 Will open a connection if there is not one and will Immediately
 begin opening a new connection."
-  (or (and eslintd-fix-connection
-           (eslintd-fix--wait-for-connection eslintd-fix-connection))
+  (or (eslintd-fix--wait-for-connection eslintd-fix-connection)
       (eslintd-fix--wait-for-connection (eslintd-fix--open-connection))))
 
 (defun eslintd-fix ()

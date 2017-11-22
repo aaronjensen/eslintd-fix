@@ -210,8 +210,9 @@ Will open a connection if there is not one."
             (message "waiting")
             ;; Wait for connection to close
             (when (eslintd-fix--wait-for-connection-to-close connection)
-              ;; Do not replace contents if there was an error
-              (unless (eslintd-fix--buffer-contains-exit-codep)
+              ;; Do not replace contents if there was an error or buffer is empty
+              (unless (or (zerop (buffer-size))
+                          (eslintd-fix--buffer-contains-exit-codep))
                 (write-file output-file)
                 (with-current-buffer buffer
                   (insert-file-contents output-file nil nil nil t))))

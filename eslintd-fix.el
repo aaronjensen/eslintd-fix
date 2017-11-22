@@ -116,6 +116,12 @@ Return t if it successfully starts."
        (zerop (call-process-shell-command
                (concat executable " start"))))))
 
+(defun eslintd-fix--buffer-contains-exit-codep ()
+  "Return t if buffer contains an eslint_d exit code."
+  (goto-char (point-max))
+  (beginning-of-line)
+  (looking-at "# exit [[:digit:]]+"))
+
 (defun eslintd-fix--connection-sentinel (connection status)
   (message "sentinel %S" (process-status connection))
   (pcase (process-status connection)
@@ -130,10 +136,8 @@ Return t if it successfully starts."
                   (buffer (process-get connection 'eslintd-fix-buffer)))
        (message "outputting: %s" output-file)
        (with-current-buffer output-buffer
-         (goto-char (point-max))
-         (beginning-of-line)
          ;; Do not replace contents if there was an error
-         (unless (looking-at "# exit [[:digit:]]+")
+         (unless (eslintd-fix--buffer-contains-exit-codep)
            (write-file output-file)
            (with-current-buffer buffer
              (insert-file-contents output-file nil nil nil t))))

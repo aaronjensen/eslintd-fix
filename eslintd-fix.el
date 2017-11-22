@@ -180,41 +180,49 @@ Return the CONNECTION if, after waiting it is open, otherwise nil."
     (when (eq (process-status connection) 'open)
       connection)))
 
+(defun eslintd-fix--wait-for-connection-to-close (connection)
+  "Wait for CONNECTION to close.
+
+Return t if the connection closes successfully."
+  (catch 'done
+    (dotimes (_ 200)
+      (if (eq (process-status connection) 'open)
+          (accept-process-output connection 0.01 nil t)
+        (throw 'done (eq (process-status connection) 'closed))))
+    nil))
+
 (defun eslintd-fix--get-connection ()
   "Return an open connection to eslint_d.
 
-Will open a connection if there is not one and will Immediately
-begin opening a new connection."
+Will open a connection if there is not one."
   (or (eslintd-fix--wait-for-connection eslintd-fix-connection)
       (eslintd-fix--wait-for-connection (eslintd-fix--open-connection))))
 
 (defun eslintd-fix ()
   (interactive)
   (-when-let* ((connection (eslintd-fix--get-connection))
+               (token (process-get connection 'eslintd-fix-token))
                (output-file (make-temp-file "eslintd-fix-"))
-               ;; TODO Try making this not a file buffer
-               (output-buffer (create-file-buffer output-file))
-               (buffer (current-buffer))
-               (token (process-get connection 'eslintd-fix-token)))
+               (buffer (current-buffer)))
     (process-put connection 'eslintd-fix-buffer buffer)
-    (process-put connection 'eslintd-fix-output-buffer output-buffer)
     (process-put connection 'eslintd-fix-output-file output-file)
-    (set-process-filter connection 'eslintd-fix--connection-filter)
-    (process-send-string connection
-                         (concat token
-                                 " " default-directory
-                                 " --fix-to-stdout"
-                                 " --stdin-filename " buffer-file-name
-                                 " --stdin\n"))
-    (process-send-region connection (point-min) (point-max))
-    (process-send-eof connection)
+    (with-temp-buffer
+      (process-put connection 'eslintd-fix-output-buffer (current-buffer))
+      (set-process-filter connection 'eslintd-fix--connection-filter)
+      (with-current-buffer buffer
+        (process-send-string connection
+                             (concat token
+                                     " " default-directory
+                                     " --fix-to-stdout"
+                                     " --stdin-filename " buffer-file-name
+                                     " --stdin\n"))
+        (process-send-region connection (point-min) (point-max))
+        (process-send-eof connection))
 
-    ;; Wait for connection to close
-    (catch 'done
-      (dotimes (_ 50)
-        (if (eq (process-status connection) 'open)
-            (accept-process-output connection 0.01 nil t)
-          (throw 'done nil))))
+      (message "waiting")
+      ;; Wait for connection to close
+      (eslintd-fix--wait-for-connection-to-close connection)
+      (message "end with-temp-buffer"))
 
     (message "done! %S" (process-status connection))
     ;; Open a new connection to save us time next time

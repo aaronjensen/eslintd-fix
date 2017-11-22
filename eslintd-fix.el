@@ -129,20 +129,7 @@ Return t if it successfully starts."
      (if (process-get connection 'eslintd-fix-retry)
          (message "Could not start or connect to eslint_d.")
        (and (eslintd-fix--start)
-            (eslintd-fix--open-connection t))))
-    ('closed
-     (-when-let* ((output-buffer (process-get connection 'eslintd-fix-output-buffer))
-                  (output-file (process-get connection 'eslintd-fix-output-file))
-                  (buffer (process-get connection 'eslintd-fix-buffer)))
-       (message "outputting: %s" output-file)
-       (with-current-buffer output-buffer
-         ;; Do not replace contents if there was an error
-         (unless (eslintd-fix--buffer-contains-exit-codep)
-           (write-file output-file)
-           (with-current-buffer buffer
-             (insert-file-contents output-file nil nil nil t))))
-       (kill-buffer output-buffer)
-       (delete-file output-file)))))
+            (eslintd-fix--open-connection t))))))
 
 (defun eslintd-fix--connection-filter (connection output)
   (-when-let* ((output-buffer (process-get connection 'eslintd-fix-output-buffer)))
@@ -186,6 +173,7 @@ Return the CONNECTION if, after waiting it is open, otherwise nil."
 Return t if the connection closes successfully."
   (catch 'done
     (dotimes (_ 200)
+      (message "waiting...")
       (if (eq (process-status connection) 'open)
           (accept-process-output connection 0.01 nil t)
         (throw 'done (eq (process-status connection) 'closed))))
@@ -202,27 +190,33 @@ Will open a connection if there is not one."
   (interactive)
   (-when-let* ((connection (eslintd-fix--get-connection))
                (token (process-get connection 'eslintd-fix-token))
-               (output-file (make-temp-file "eslintd-fix-"))
-               (buffer (current-buffer)))
-    (process-put connection 'eslintd-fix-buffer buffer)
-    (process-put connection 'eslintd-fix-output-file output-file)
-    (with-temp-buffer
-      (process-put connection 'eslintd-fix-output-buffer (current-buffer))
-      (set-process-filter connection 'eslintd-fix--connection-filter)
-      (with-current-buffer buffer
-        (process-send-string connection
-                             (concat token
-                                     " " default-directory
-                                     " --fix-to-stdout"
-                                     " --stdin-filename " buffer-file-name
-                                     " --stdin\n"))
-        (process-send-region connection (point-min) (point-max))
-        (process-send-eof connection))
+               (buffer (current-buffer))
+               (output-file (make-temp-file "eslintd-fix-")))
+    (unwind-protect
+        (progn
+          (with-temp-buffer
+            (process-put connection 'eslintd-fix-output-buffer (current-buffer))
+            (set-process-filter connection 'eslintd-fix--connection-filter)
+            (with-current-buffer buffer
+              (process-send-string connection
+                                   (concat token
+                                           " " default-directory
+                                           " --fix-to-stdout"
+                                           " --stdin-filename " buffer-file-name
+                                           " --stdin\n"))
+              (process-send-region connection (point-min) (point-max))
+              (process-send-eof connection))
 
-      (message "waiting")
-      ;; Wait for connection to close
-      (eslintd-fix--wait-for-connection-to-close connection)
-      (message "end with-temp-buffer"))
+            (message "waiting")
+            ;; Wait for connection to close
+            (when (eslintd-fix--wait-for-connection-to-close connection)
+              ;; Do not replace contents if there was an error
+              (unless (eslintd-fix--buffer-contains-exit-codep)
+                (write-file output-file)
+                (with-current-buffer buffer
+                  (insert-file-contents output-file nil nil nil t))))
+            (message "end with-temp-buffer")))
+      (delete-file output-file))
 
     (message "done! %S" (process-status connection))
     ;; Open a new connection to save us time next time

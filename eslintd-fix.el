@@ -208,7 +208,9 @@ Will open a connection if there is not one."
               ;; Do not replace contents if there was an error or buffer is empty
               (unless (or (zerop (buffer-size))
                           (eslintd-fix--buffer-contains-exit-codep))
-                (write-file output-file)
+                ;; Use write-region instead of write-file to avoid saving to
+                ;; recentf and any other hooks.
+                (write-region (point-min) (point-max) output-file)
                 (with-current-buffer buffer
                   (insert-file-contents output-file nil nil nil t))))))
       (delete-file output-file))

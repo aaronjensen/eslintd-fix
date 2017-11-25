@@ -68,6 +68,89 @@
 (defvar eslintd-fix-connection nil
   "An open, not-yet-used connection to eslint_d.")
 
+(defun eslintd-fix--goto-line (line)
+  "Move point to LINE."
+  (goto-char (point-min))
+  (forward-line (1- line)))
+
+(defun eslintd-fix--delete-whole-line (&optional arg)
+    "Delete the current line without putting it in the `kill-ring'.
+Derived from function `kill-whole-line'.  ARG is defined as for that
+function."
+    (setq arg (or arg 1))
+    (if (and (> arg 0)
+             (eobp)
+             (save-excursion (forward-visible-line 0) (eobp)))
+        (signal 'end-of-buffer nil))
+    (if (and (< arg 0)
+             (bobp)
+             (save-excursion (end-of-visible-line) (bobp)))
+        (signal 'beginning-of-buffer nil))
+    (cond ((zerop arg)
+           (delete-region (progn (forward-visible-line 0) (point))
+                          (progn (end-of-visible-line) (point))))
+          ((< arg 0)
+           (delete-region (progn (end-of-visible-line) (point))
+                          (progn (forward-visible-line (1+ arg))
+                                 (unless (bobp)
+                                   (backward-char))
+                                 (point))))
+          (t
+           (delete-region (progn (forward-visible-line 0) (point))
+                                                  (progn (forward-visible-line arg) (point))))))
+
+(defun eslintd-fix--apply-rcs-patch (patch-buffer)
+  "Apply an RCS-formatted diff from PATCH-BUFFER to the current buffer."
+  (let ((target-buffer (current-buffer))
+        ;; Relative offset between buffer line numbers and line numbers
+        ;; in patch.
+        ;;
+        ;; Line numbers in the patch are based on the source file, so
+        ;; we have to keep an offset when making changes to the
+        ;; buffer.
+        ;;
+        ;; Appending lines decrements the offset (possibly making it
+        ;; negative), deleting lines increments it. This order
+        ;; simplifies the forward-line invocations.
+        (line-offset 0))
+    (save-excursion
+      (with-current-buffer patch-buffer
+        (goto-char (point-min))
+        (while (not (eobp))
+          (unless (looking-at "^\\([ad]\\)\\([0-9]+\\) \\([0-9]+\\)")
+            (error "Invalid rcs patch or internal error in eslintd-fix--apply-rcs-patch"))
+          (forward-line)
+          (let ((action (match-string 1))
+                (from (string-to-number (match-string 2)))
+                (len  (string-to-number (match-string 3))))
+            (cond
+             ((equal action "a")
+              (let ((start (point)))
+                (forward-line len)
+                (let ((text (buffer-substring start (point))))
+                  (with-current-buffer target-buffer
+                    (setq line-offset (- line-offset len))
+                    (goto-char (point-min))
+                    (forward-line (- from len line-offset))
+                    (insert text)))))
+             ((equal action "d")
+              (with-current-buffer target-buffer
+                (eslintd-fix--goto-line (- from line-offset))
+                (setq line-offset (+ line-offset len))
+                (eslintd-fix--delete-whole-line len)))
+             (t
+              (error "Invalid rcs patch or internal error in eslintd-fix--apply-rcs-patch")))))))))
+
+(defun eslintd-fix--replace-buffer-contents-via-patch (buffer file)
+  (with-temp-buffer
+    (let ((patch-buffer (current-buffer)))
+      (with-current-buffer buffer
+        (when (not (zerop
+                    (call-process-region
+                     (point-min) (point-max) "diff"
+                     nil patch-buffer nil "-n" "-" file)))
+          (eslintd-fix--apply-rcs-patch patch-buffer))))))
+
 (defun eslintd-fix--compatible-versionp (executable)
   (and (file-executable-p executable)
        (zerop (call-process-shell-command
@@ -216,8 +299,7 @@ Will open a connection if there is not one."
                 ;; recentf and any other hooks.
                 (let ((inhibit-message t))
                   (write-region (point-min) (point-max) output-file))
-                (with-current-buffer buffer
-                  (insert-file-contents output-file nil nil nil t))))))
+                (eslintd-fix--replace-buffer-contents-via-patch buffer output-file)))))
       (delete-file output-file))
 
     ;; Open a new connection to save us time next time

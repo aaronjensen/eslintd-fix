@@ -109,7 +109,6 @@
   "Start eslint_d.
 
 Return t if it successfully starts."
-  (message "starting")
   (-if-let* ((executable (executable-find eslintd-fix-executable)))
       (and
        (eslintd-fix--verify executable)
@@ -123,7 +122,6 @@ Return t if it successfully starts."
   (looking-at "# exit [[:digit:]]+"))
 
 (defun eslintd-fix--connection-sentinel (connection status)
-  (message "sentinel %S" (process-status connection))
   (pcase (process-status connection)
     ('failed
      (if (process-get connection 'eslintd-fix-retry)
@@ -154,7 +152,6 @@ cached connection if it is already open."
     (process-put connection 'eslintd-fix-retry is-retry)
     (set-process-query-on-exit-flag connection nil)
     (set-process-sentinel connection 'eslintd-fix--connection-sentinel)
-    (message "%S" (process-status connection))
     (setq eslintd-fix-connection connection)))
 
 (defun eslintd-fix--wait-for-connection (connection)
@@ -173,7 +170,6 @@ Return the CONNECTION if, after waiting it is open, otherwise nil."
 Return t if the connection closes successfully."
   (catch 'done
     (dotimes (_ 200)
-      (message "waiting...")
       (if (eq (process-status connection) 'open)
           (accept-process-output connection 0.01 nil t)
         (throw 'done (eq (process-status connection) 'closed))))
@@ -207,7 +203,6 @@ Will open a connection if there is not one."
               (process-send-region connection (point-min) (point-max))
               (process-send-eof connection))
 
-            (message "waiting")
             ;; Wait for connection to close
             (when (eslintd-fix--wait-for-connection-to-close connection)
               ;; Do not replace contents if there was an error or buffer is empty
@@ -215,11 +210,9 @@ Will open a connection if there is not one."
                           (eslintd-fix--buffer-contains-exit-codep))
                 (write-file output-file)
                 (with-current-buffer buffer
-                  (insert-file-contents output-file nil nil nil t))))
-            (message "end with-temp-buffer")))
+                  (insert-file-contents output-file nil nil nil t))))))
       (delete-file output-file))
 
-    (message "done! %S" (process-status connection))
     ;; Open a new connection to save us time next time
     (eslintd-fix--open-connection)))
 

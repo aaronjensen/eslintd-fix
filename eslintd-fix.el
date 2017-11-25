@@ -189,7 +189,8 @@ Will open a connection if there is not one."
                (buffer (current-buffer))
                (output-file (make-temp-file "eslintd-fix-")))
     (unwind-protect
-        (progn
+        (save-restriction
+          (widen)
           (with-temp-buffer
             (process-put connection 'eslintd-fix-output-buffer (current-buffer))
             (set-process-filter connection 'eslintd-fix--connection-filter)

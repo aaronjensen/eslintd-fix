@@ -21,7 +21,7 @@ M-x package-install RET eslintd-fix RET
 
 ## Usage
 
-Ensure that you have [eslint_d][] installed and in your path.
+Ensure that you have [eslint_d][] `5.2.0+` installed and in your path.
 
 Then, in your `init.el`:
 

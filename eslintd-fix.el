@@ -1,10 +1,11 @@
-;;; eslintd-fix.el --- use eslint_d to automatically fix js files
+;;; eslintd-fix.el --- use eslint_d to automatically fix js files -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2016 by Aaron Jensen
 
 ;; Author: Aaron Jensen <aaronjensen@gmail.com>
 ;; URL: https://github.com/aaronjensen/eslintd-fix
 ;; Version: 1.0.0
+;; Package-Requires: ((dash "2.13.0"))
 
 ;;; Commentary:
 
@@ -38,12 +39,19 @@
 ;; Boston, MA 02110-1301, USA.
 
 ;;; Code:
+(require 'dash)
+
 (defgroup eslintd-fix nil
   "Fix javascript code with eslint_d"
   :group 'tools)
 
 (defcustom eslintd-fix-executable "eslint_d"
   "The eslint_d executable used by `eslintd-fix'."
+  :group 'eslintd-fix
+  :type 'string)
+
+(defcustom eslintd-fix-portfile "~/.eslint_d"
+  "The file written by eslint_d containing the port and token."
   :group 'eslintd-fix
   :type 'string)
 
@@ -57,151 +65,158 @@
 (defvar-local eslintd-fix--verified nil
   "Set to t if eslintd has been verified as working for this buffer.")
 
-(defun eslintd-fix--goto-line (line)
-  "Move point to LINE."
-  (goto-char (point-min))
-  (forward-line (1- line)))
+(defvar eslintd-fix-connection nil
+  "An open, not-yet-used connection to eslint_d.")
 
-(defun eslintd-fix--delete-whole-line (&optional arg)
-    "Delete the current line without putting it in the `kill-ring'.
-Derived from function `kill-whole-line'.  ARG is defined as for that
-function."
-    (setq arg (or arg 1))
-    (if (and (> arg 0)
-             (eobp)
-             (save-excursion (forward-visible-line 0) (eobp)))
-        (signal 'end-of-buffer nil))
-    (if (and (< arg 0)
-             (bobp)
-             (save-excursion (end-of-visible-line) (bobp)))
-        (signal 'beginning-of-buffer nil))
-    (cond ((zerop arg)
-           (delete-region (progn (forward-visible-line 0) (point))
-                          (progn (end-of-visible-line) (point))))
-          ((< arg 0)
-           (delete-region (progn (end-of-visible-line) (point))
-                          (progn (forward-visible-line (1+ arg))
-                                 (unless (bobp)
-                                   (backward-char))
-                                 (point))))
-          (t
-           (delete-region (progn (forward-visible-line 0) (point))
-                                                  (progn (forward-visible-line arg) (point))))))
+(defun eslintd-fix--compatible-versionp (executable)
+  (and (file-executable-p executable)
+       (zerop (call-process-shell-command
+               (concat
+                "("
+                executable
+                " --help | grep -qe '--fix-to-stdout'"
+                ")")))))
 
-(defun eslintd-fix--apply-rcs-patch (patch-buffer)
-  "Apply an RCS-formatted diff from PATCH-BUFFER to the current buffer."
-  (let ((target-buffer (current-buffer))
-        ;; Relative offset between buffer line numbers and line numbers
-        ;; in patch.
-        ;;
-        ;; Line numbers in the patch are based on the source file, so
-        ;; we have to keep an offset when making changes to the
-        ;; buffer.
-        ;;
-        ;; Appending lines decrements the offset (possibly making it
-        ;; negative), deleting lines increments it. This order
-        ;; simplifies the forward-line invocations.
-        (line-offset 0))
-    (save-excursion
-      (with-current-buffer patch-buffer
-        (goto-char (point-min))
-        (while (not (eobp))
-          (unless (looking-at "^\\([ad]\\)\\([0-9]+\\) \\([0-9]+\\)")
-            (error "Invalid rcs patch or internal error in eslintd-fix--apply-rcs-patch"))
-          (forward-line)
-          (let ((action (match-string 1))
-                (from (string-to-number (match-string 2)))
-                (len  (string-to-number (match-string 3))))
-            (cond
-             ((equal action "a")
-              (let ((start (point)))
-                (forward-line len)
-                (let ((text (buffer-substring start (point))))
-                  (with-current-buffer target-buffer
-                    (setq line-offset (- line-offset len))
-                    (goto-char (point-min))
-                    (forward-line (- from len line-offset))
-                    (insert text)))))
-             ((equal action "d")
-              (with-current-buffer target-buffer
-                (eslintd-fix--goto-line (- from line-offset))
-                (setq line-offset (+ line-offset len))
-                (eslintd-fix--delete-whole-line len)))
-             (t
-              (error "Invalid rcs patch or internal error in eslintd-fix--apply-rcs-patch")))))))))
+(defun eslintd-fix--eslint-config-foundp (executable)
+  (let ((filename (buffer-file-name)))
+    (and filename
+         (zerop (call-process-shell-command
+                 (concat
+                  executable
+                  " --print-config "
+                  filename))))))
 
-(defun eslintd-fix--compatible-versionp ()
-  (let ((executable (executable-find eslintd-fix-executable)))
-    (and executable
-         (file-executable-p executable)
-         (zerop (call-process-shell-command (concat
-                                "("
-                                executable
-                                " --help | grep -qe '--fix-to-stdout'"
-                                ")"))))))
-
-(defun eslintd-fix--eslint-config-foundp ()
-  (let ((executable (executable-find eslintd-fix-executable))
-        (filename (buffer-file-name)))
-    (with-temp-buffer
-      (and filename
-           (zerop
-            (call-process executable nil t nil "--print-config" filename))))))
-
-(defun eslintd-fix--verify ()
+(defun eslintd-fix--verify (executable)
   (or eslintd-fix--verified
-      (cond ((not (eslintd-fix--compatible-versionp))
+      (cond ((not (eslintd-fix--compatible-versionp executable))
              (eslintd-fix-mode -1)
              (message "eslintd-fix: Could not find eslint_d or it does not have the `--fix-to-stdout' feature.")
              nil)
-            ((not (eslintd-fix--eslint-config-foundp))
+            ((not (eslintd-fix--eslint-config-foundp executable))
              (eslintd-fix-mode -1)
              (message "eslintd-fix: Could not find an eslint config file.")
              nil)
             (t (setq eslintd-fix--verified t)))))
 
+(defun eslintd-fix--read-portfile ()
+  "Read and return contents of ~/.eslint_d as a list."
+  (when (file-exists-p eslintd-fix-portfile)
+    (with-temp-buffer
+      (insert-file-contents eslintd-fix-portfile)
+      (split-string (buffer-string) " " t))))
+
+(defun eslintd-fix--start ()
+  "Start eslint_d.
+
+Return t if it successfully starts."
+  (-if-let* ((executable (executable-find eslintd-fix-executable)))
+      (and
+       (eslintd-fix--verify executable)
+       (zerop (call-process-shell-command
+               (concat executable " start"))))))
+
+(defun eslintd-fix--buffer-contains-exit-codep ()
+  "Return t if buffer contains an eslint_d exit code."
+  (goto-char (point-max))
+  (beginning-of-line)
+  (looking-at "# exit [[:digit:]]+"))
+
+(defun eslintd-fix--connection-sentinel (connection status)
+  (pcase (process-status connection)
+    ('failed
+     (if (process-get connection 'eslintd-fix-retry)
+         (message "Could not start or connect to eslint_d.")
+       (and (eslintd-fix--start)
+            (eslintd-fix--open-connection t))))))
+
+(defun eslintd-fix--connection-filter (connection output)
+  (-when-let* ((output-buffer (process-get connection 'eslintd-fix-output-buffer)))
+    (with-current-buffer output-buffer
+      (insert output))))
+
+(defun eslintd-fix--open-connection (&optional is-retry)
+  "Open a connection to eslint_d.
+
+Return nil if eslint_d is not running. Also close the existing,
+cached connection if it is already open."
+  (and eslintd-fix-connection
+       (delete-process eslintd-fix-connection))
+  (-when-let* ((portfile (or (eslintd-fix--read-portfile)
+                             (and (eslintd-fix--start)
+                                  (eslintd-fix--read-portfile))))
+               (port (car portfile))
+               (token (cadr portfile))
+               (connection
+                (open-network-stream "eslintd-fix" nil "localhost" port :nowait t)))
+    (process-put connection 'eslintd-fix-token token)
+    (process-put connection 'eslintd-fix-retry is-retry)
+    (set-process-query-on-exit-flag connection nil)
+    (set-process-sentinel connection 'eslintd-fix--connection-sentinel)
+    (setq eslintd-fix-connection connection)))
+
+(defun eslintd-fix--wait-for-connection (connection)
+  "Wait for CONNECTION to connect.
+
+Return the CONNECTION if, after waiting it is open, otherwise nil."
+  (when connection
+    (while (eq (process-status connection) 'connect)
+      (sleep-for 0.01))
+    (when (eq (process-status connection) 'open)
+      connection)))
+
+(defun eslintd-fix--wait-for-connection-to-close (connection)
+  "Wait for CONNECTION to close.
+
+Return t if the connection closes successfully."
+  (catch 'done
+    (dotimes (_ 200)
+      (if (eq (process-status connection) 'open)
+          (accept-process-output connection 0.01 nil t)
+        (throw 'done (eq (process-status connection) 'closed))))
+    nil))
+
+(defun eslintd-fix--get-connection ()
+  "Return an open connection to eslint_d.
+
+Will open a connection if there is not one."
+  (or (eslintd-fix--wait-for-connection eslintd-fix-connection)
+      (eslintd-fix--wait-for-connection (eslintd-fix--open-connection))))
+
 (defun eslintd-fix ()
-  "Replace buffer contents with \"fixed\" code from eslint_d."
   (interactive)
-  (let ((executable (executable-find eslintd-fix-executable)))
-    (when (and (eslintd-fix--verify)
-               executable
-               (file-executable-p executable))
-      (let ((command (concat
-                      "("
-                      " set -o pipefail;"
-                      " original=$(cat);"
-                      "<<<\"$original\" "
-                      (when eslintd-fix-preprocess-command (concat eslintd-fix-preprocess-command " | "))
-                      executable
-                      " --stdin"
-                      " --fix-to-stdout"
-                      " --stdin-filename " buffer-file-name
-                      " | ( diff -n <(echo \"$original\") -; true )"
-                      " )"))
-            (buffer (current-buffer))
-            (buffer-min (point-min))
-            (buffer-max (point-max)))
-        (with-temp-buffer
-          (insert-buffer-substring buffer buffer-min buffer-max)
-          (when (zerop
-                 (shell-command-on-region
-                  ;; Region
-                  (point-min)
-                  (point-max)
-                  ;; Command
-                  command
-                  ;; Output to current buffer
-                  t
-                  ;; Replace buffer
-                  t
-                  ;; Error buffer name
-                  "*eslintd-fix error*"
-                  ;; Display errors
-                  t))
-            (let ((patch-buffer (current-buffer)))
-              (with-current-buffer buffer
-                (eslintd-fix--apply-rcs-patch patch-buffer)))))))))
+  (-when-let* ((connection (eslintd-fix--get-connection))
+               (token (process-get connection 'eslintd-fix-token))
+               (buffer (current-buffer))
+               (output-file (make-temp-file "eslintd-fix-")))
+    (unwind-protect
+        (progn
+          (with-temp-buffer
+            (process-put connection 'eslintd-fix-output-buffer (current-buffer))
+            (set-process-filter connection 'eslintd-fix--connection-filter)
+            (with-current-buffer buffer
+              (process-send-string connection
+                                   (concat token
+                                           " " default-directory
+                                           " --fix-to-stdout"
+                                           " --stdin-filename " buffer-file-name
+                                           " --stdin\n"))
+              (process-send-region connection (point-min) (point-max))
+              (process-send-eof connection))
+
+            ;; Wait for connection to close
+            (when (eslintd-fix--wait-for-connection-to-close connection)
+              ;; Do not replace contents if there was an error or buffer is empty
+              (unless (or (zerop (buffer-size))
+                          (eslintd-fix--buffer-contains-exit-codep))
+                ;; Use write-region instead of write-file to avoid saving to
+                ;; recentf and any other hooks.
+                (write-region (point-min) (point-max) output-file)
+                (with-current-buffer buffer
+                  (insert-file-contents output-file nil nil nil t))))))
+      (delete-file output-file))
+
+    ;; Open a new connection to save us time next time
+    (eslintd-fix--open-connection)))
 
 ;;;###autoload
 (define-minor-mode eslintd-fix-mode

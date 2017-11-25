@@ -112,11 +112,11 @@ Return t if it successfully starts."
   (-when-let* ((executable (executable-find eslintd-fix-executable)))
       (and
        (eslintd-fix--verify executable)
-       (message "Starting eslint_d...")
+       (message "eslintd-fix: Starting eslint_d...")
        (if (zerop (call-process-shell-command
                    (concat executable " start")))
            t
-         (message "Could not start eslint_d.")
+         (message "eslintd-fix: Could not start eslint_d.")
          (eslintd-fix-mode -1)
          nil))))
 

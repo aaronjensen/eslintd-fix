@@ -109,11 +109,16 @@
   "Start eslint_d.
 
 Return t if it successfully starts."
-  (-if-let* ((executable (executable-find eslintd-fix-executable)))
+  (-when-let* ((executable (executable-find eslintd-fix-executable)))
       (and
        (eslintd-fix--verify executable)
-       (zerop (call-process-shell-command
-               (concat executable " start"))))))
+       (message "Starting eslint_d...")
+       (if (zerop (call-process-shell-command
+                   (concat executable " start")))
+           t
+         (message "Could not start eslint_d.")
+         (eslintd-fix-mode -1)
+         nil))))
 
 (defun eslintd-fix--buffer-contains-exit-codep ()
   "Return t if buffer contains an eslint_d exit code."
@@ -123,18 +128,14 @@ Return t if it successfully starts."
 
 (defun eslintd-fix--connection-sentinel (connection status)
   (pcase (process-status connection)
-    ('failed
-     (if (process-get connection 'eslintd-fix-retry)
-         (message "Could not start or connect to eslint_d.")
-       (and (eslintd-fix--start)
-            (eslintd-fix--open-connection t))))))
+    ('failed (eslintd-fix--start))))
 
 (defun eslintd-fix--connection-filter (connection output)
   (-when-let* ((output-buffer (process-get connection 'eslintd-fix-output-buffer)))
     (with-current-buffer output-buffer
       (insert output))))
 
-(defun eslintd-fix--open-connection (&optional is-retry)
+(defun eslintd-fix--open-connection ()
   "Open a connection to eslint_d.
 
 Return nil if eslint_d is not running. Also close the existing,
@@ -149,7 +150,6 @@ cached connection if it is already open."
                (connection
                 (open-network-stream "eslintd-fix" nil "localhost" port :nowait t)))
     (process-put connection 'eslintd-fix-token token)
-    (process-put connection 'eslintd-fix-retry is-retry)
     (set-process-query-on-exit-flag connection nil)
     (set-process-sentinel connection 'eslintd-fix--connection-sentinel)
     (setq eslintd-fix-connection connection)))
@@ -210,7 +210,8 @@ Will open a connection if there is not one."
                           (eslintd-fix--buffer-contains-exit-codep))
                 ;; Use write-region instead of write-file to avoid saving to
                 ;; recentf and any other hooks.
-                (write-region (point-min) (point-max) output-file)
+                (let ((inhibit-message t))
+                  (write-region (point-min) (point-max) output-file))
                 (with-current-buffer buffer
                   (insert-file-contents output-file nil nil nil t))))))
       (delete-file output-file))

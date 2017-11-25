@@ -196,11 +196,14 @@ Will open a connection if there is not one."
             (set-process-filter connection 'eslintd-fix--connection-filter)
             (with-current-buffer buffer
               (process-send-string connection
-                                   (concat token
-                                           " " default-directory
-                                           " --fix-to-stdout"
-                                           " --stdin-filename " buffer-file-name
-                                           " --stdin\n"))
+                                   (concat
+                                    (combine-and-quote-strings
+                                     (list token
+                                           default-directory
+                                           "--fix-to-stdout"
+                                           "--stdin-filename" buffer-file-name
+                                           "--stdin"))
+                                    "\n"))
               (process-send-region connection (point-min) (point-max))
               (process-send-eof connection))
 

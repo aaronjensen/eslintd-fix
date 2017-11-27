@@ -169,17 +169,29 @@ function."
                   " --print-config "
                   filename))))))
 
-(defun eslintd-fix--verify (executable)
-  (or eslintd-fix--verified
-      (cond ((not (eslintd-fix--compatible-versionp executable))
-             (eslintd-fix-mode -1)
-             (message "eslintd-fix: Could not find eslint_d or it does not have the `--fix-to-stdout' feature.")
-             nil)
+(defun eslintd-fix--deactivate (message)
+  "Deactivate eslintd-fix and show a message explaining why."
+  (eslintd-fix-mode -1)
+  (message (concat "eslintd-fix: " message))
+  nil)
+
+(defun eslintd-fix--verify (&optional force)
+  "Verify that eslint_d is running and the right version.
+
+Pass non-nil FORCE to bypass the memoized verification result.
+Return t eslint_d is working and nil otherwise."
+  (-if-let* ((executable (executable-find eslintd-fix-executable)))
+      (cond ((and (not force) eslintd-fix--verified)
+             t)
+            ((not (eslintd-fix--compatible-versionp executable))
+             (eslintd-fix--deactivate "Could not find eslint_d or it does not have the `--fix-to-stdout' feature."))
             ((not (eslintd-fix--eslint-config-foundp executable))
-             (eslintd-fix-mode -1)
-             (message "eslintd-fix: Could not find an eslint config file.")
-             nil)
-            (t (setq eslintd-fix--verified t)))))
+             (eslintd-fix--deactivate "Could not find an eslint config file."))
+            ((not (file-exists-p eslintd-fix-portfile))
+             (eslintd-fix--deactivate (concat  "Could not find `eslintd-fix-portfile' after starting eslint_d. "
+                                    "This may be a bug in eslint_d, eslintd-fix or you may have overridden the portfile location somehow.")))
+            (t (setq eslintd-fix--verified t)))
+    (eslintd-fix--deactivate "Could not find eslint_d. Customize `eslintd-fix-executable' and ensure it is in your `exec-path'.")))
 
 (defun eslintd-fix--read-portfile ()
   "Read and return contents of ~/.eslint_d as a list."
@@ -192,16 +204,7 @@ function."
   "Start eslint_d.
 
 Return t if it successfully starts."
-  (-when-let* ((executable (executable-find eslintd-fix-executable)))
-      (and
-       (eslintd-fix--verify executable)
-       (message "eslintd-fix: Starting eslint_d...")
-       (if (zerop (call-process-shell-command
-                   (concat executable " start")))
-           t
-         (message "eslintd-fix: Could not start eslint_d.")
-         (eslintd-fix-mode -1)
-         nil))))
+  (eslintd-fix--verify t))
 
 (defun eslintd-fix--buffer-contains-exit-codep ()
   "Return t if buffer contains an eslint_d exit code."
@@ -267,7 +270,8 @@ Will open a connection if there is not one."
 
 (defun eslintd-fix ()
   (interactive)
-  (-when-let* ((connection (eslintd-fix--get-connection))
+  (-when-let* ((_ (eslintd-fix--verify))
+               (connection (eslintd-fix--get-connection))
                (token (process-get connection 'eslintd-fix-token))
                (buffer (current-buffer))
                (output-file (make-temp-file "eslintd-fix-")))

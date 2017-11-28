@@ -5,7 +5,7 @@
 ;; Author: Aaron Jensen <aaronjensen@gmail.com>
 ;; URL: https://github.com/aaronjensen/eslintd-fix
 ;; Version: 1.0.0
-;; Package-Requires: ((dash "2.13.0"))
+;; Package-Requires: ((dash "2.12.0") (emacs "24.3"))
 
 ;;; Commentary:
 
@@ -61,9 +61,8 @@
   :type 'string)
 
 (defcustom eslintd-fix-preprocess-command nil
-  "The shell command to pipe the buffer into before piping to
-  eslintd. This is useful for integrating `prettier', for
-  example. It is ignored if `nil'."
+  "The shell command to pipe the buffer into before piping to eslintd.
+This is useful for integrating `prettier', for example. It is ignored if nil."
   :group 'eslintd-fix
   :type 'string)
 
@@ -147,6 +146,10 @@ function."
               (error "Invalid rcs patch or internal error in eslintd-fix--apply-rcs-patch")))))))))
 
 (defun eslintd-fix--replace-buffer-contents-via-patch (buffer file)
+  "Replace BUFFER contents with contents of FILE.
+
+Maintain point position as best as possible and minimize undo
+size by applying the changes as a diff patch."
   (with-temp-buffer
     (let ((patch-buffer (current-buffer)))
       (with-current-buffer buffer
@@ -157,6 +160,7 @@ function."
           (eslintd-fix--apply-rcs-patch patch-buffer))))))
 
 (defun eslintd-fix--compatible-versionp (executable)
+  "Return t if EXECUTABLE supports the features we need."
   (and (file-executable-p executable)
        (zerop (call-process-shell-command
                (concat
@@ -166,6 +170,9 @@ function."
                 ")")))))
 
 (defun eslintd-fix--eslint-config-foundp (executable)
+  "Return t if there is an eslint config for the current file.
+
+EXECUTABLE is the full path to an eslint_d executable."
   (let ((filename (buffer-file-name)))
     (and filename
          (zerop (call-process-shell-command
@@ -175,7 +182,7 @@ function."
                   filename))))))
 
 (defun eslintd-fix--deactivate (message)
-  "Deactivate eslintd-fix and show a message explaining why."
+  "Deactivate ‘eslintd-fix-mode’ and show MESSAGE explaining why."
   (eslintd-fix-mode -1)
   (message (concat "eslintd-fix: " message))
   nil)
@@ -215,16 +222,22 @@ Return t if it successfully starts."
   (eslintd-fix--verify t))
 
 (defun eslintd-fix--buffer-contains-exit-codep ()
-  "Return t if buffer contains an eslint_d exit code."
+  "Return t if buffer ends with an eslint_d exit code."
   (goto-char (point-max))
   (beginning-of-line)
   (looking-at "# exit [[:digit:]]+"))
 
 (defun eslintd-fix--connection-sentinel (connection status)
+  "Automatically attempt to start eslint_d if CONNECTION fails.
+
+STATUS contains the failure status message."
   (pcase (process-status connection)
-    ('failed (eslintd-fix--start))))
+    ('failed
+     (message "eslintd-fix: Failed to connect: %s" status)
+     (eslintd-fix--start))))
 
 (defun eslintd-fix--connection-filter (connection output)
+  "Copy OUTPUT from CONNECTION to output buffer."
   (-when-let* ((output-buffer (process-get connection 'eslintd-fix-output-buffer)))
     (with-current-buffer output-buffer
       (insert output))))
@@ -277,6 +290,7 @@ Will open a connection if there is not one."
       (eslintd-fix--wait-for-connection (eslintd-fix--open-connection))))
 
 (defun eslintd-fix ()
+  "Use eslint_d to \"fix\ the current buffer."
   (interactive)
   (-when-let* ((_ (eslintd-fix--verify))
                (connection (eslintd-fix--get-connection))

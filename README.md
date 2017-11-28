@@ -37,6 +37,8 @@ You can change the location of eslint_d.
 (setq eslintd-fix-executable "/my/path/eslint_d")
 ```
 
+See `M-x customize-group eslintd-fix` for more.
+
 ## Thanks
 
 * [@mantoni][] for [eslint_d][].

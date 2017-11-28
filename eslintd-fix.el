@@ -50,6 +50,11 @@
   :group 'eslintd-fix
   :type 'string)
 
+(defcustom eslintd-fix-host "127.0.0.1"
+  "The host to connect to for eslint_d. Typically either \"127.0.0.1\" or \"localhost\"."
+  :group 'eslintd-fix
+  :type 'string)
+
 (defcustom eslintd-fix-portfile "~/.eslint_d"
   "The file written by eslint_d containing the port and token."
   :group 'eslintd-fix
@@ -231,7 +236,7 @@ cached connection if it is already open."
                (port (car portfile))
                (token (cadr portfile))
                (connection
-                (open-network-stream "eslintd-fix" nil "localhost" port :nowait t)))
+                (open-network-stream "eslintd-fix" nil eslintd-fix-host port :nowait t)))
     (process-put connection 'eslintd-fix-token token)
     (set-process-query-on-exit-flag connection nil)
     (set-process-sentinel connection 'eslintd-fix--connection-sentinel)

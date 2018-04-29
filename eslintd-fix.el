@@ -295,8 +295,7 @@ Will open a connection if there is not one."
   (-when-let* ((_ (eslintd-fix--verify))
                (connection (eslintd-fix--get-connection))
                (token (process-get connection 'eslintd-fix-token))
-               (buffer (current-buffer))
-               (output-file (make-temp-file "eslintd-fix-")))
+               (buffer (current-buffer)))
     (unwind-protect
         (save-restriction
           (widen)
@@ -321,12 +320,19 @@ Will open a connection if there is not one."
               ;; Do not replace contents if there was an error or buffer is empty
               (unless (or (zerop (buffer-size))
                           (eslintd-fix--buffer-contains-exit-codep))
-                ;; Use write-region instead of write-file to avoid saving to
-                ;; recentf and any other hooks.
-                (let ((inhibit-message t))
-                  (write-region (point-min) (point-max) output-file))
-                (eslintd-fix--replace-buffer-contents-via-patch buffer output-file)))))
-      (delete-file output-file))
+                (if (fboundp 'replace-buffer-contents)
+                    (let ((temp-buffer (current-buffer)))
+                      (with-current-buffer buffer
+                        (replace-buffer-contents temp-buffer)))
+                  (let ((inhibit-message t)
+                        (output-file (make-temp-file "eslintd-fix-")))
+                    (unwind-protect
+                        (progn
+                          ;; Use write-region instead of write-file to avoid saving to
+                          ;; recentf and any other hooks.
+                          (write-region (point-min) (point-max) output-file)
+                          (eslintd-fix--replace-buffer-contents-via-patch buffer output-file))
+                      (delete-file output-file)))))))))
 
     ;; Open a new connection to save us time next time
     (eslintd-fix--open-connection)))

@@ -162,12 +162,9 @@ size by applying the changes as a diff patch."
 (defun eslintd-fix--compatible-versionp (executable)
   "Return t if EXECUTABLE supports the features we need."
   (and (file-executable-p executable)
-       (zerop (call-process-shell-command
-               (concat
-                "("
-                executable
-                " --help | grep -qe '--fix-to-stdout'"
-                ")")))))
+       (string-match-p
+        "--fix-to-stdout"
+        (or (shell-command-to-string (concat executable " --help")) ""))))
 
 (defun eslintd-fix--eslint-config-foundp (executable)
   "Return t if there is an eslint config for the current file.

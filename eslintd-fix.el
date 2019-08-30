@@ -175,8 +175,8 @@ EXECUTABLE is the full path to an eslint_d executable."
          (zerop (call-process-shell-command
                  (concat
                   executable
-                  " --print-config "
-                  filename))))))
+                  " --print-config \""
+                  filename "\""))))))
 
 (defun eslintd-fix--deactivate (message)
   "Deactivate ‘eslintd-fix-mode’ and show MESSAGE explaining why."

@@ -176,7 +176,7 @@ EXECUTABLE is the full path to an eslint_d executable."
                  (concat
                   executable
                   " --print-config "
-                  filename))))))
+                  (shell-quote-argument filename)))))))
 
 (defun eslintd-fix--deactivate (message)
   "Deactivate ‘eslintd-fix-mode’ and show MESSAGE explaining why."

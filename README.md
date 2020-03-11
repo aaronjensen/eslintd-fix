@@ -6,6 +6,9 @@
 Minor-mode to automatically fix javascript with [eslint_d][]. Built with a focus
 on speed, you will typically barely notice a delay when saving, if at all. 
 
+Note that this package will not show errors, only fix them on save. You'll want to
+[configure flycheck to use eslint_d](https://github.com/mantoni/eslint_d.js#linting) as well.
+
 This package was recently rewritten to use a direct network connection to
 [eslint_d][] rather than a node shell command. This is significantly faster, but
 could have introduced bugs. If you notice anything out of the ordinary, please

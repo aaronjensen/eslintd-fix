@@ -164,7 +164,9 @@ size by applying the changes as a diff patch."
   (and (file-executable-p executable)
        (string-match-p
         "--fix-to-stdout"
-        (or (shell-command-to-string (concat executable " --help")) ""))))
+        (condition-case nil
+            (with-output-to-string (call-process executable nil standard-output nil "--help"))
+          (error "")))))
 
 (defun eslintd-fix--eslint-config-foundp (executable)
   "Return t if there is an eslint config for the current file.

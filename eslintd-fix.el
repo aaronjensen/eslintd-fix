@@ -66,6 +66,11 @@ This is useful for integrating `prettier', for example. It is ignored if nil."
   :group 'eslintd-fix
   :type 'string)
 
+(defcustom eslintd-fix-timeout-seconds 2
+  "The time to wait for eslint_d to respond to a request."
+  :group 'eslintd-fix
+  :type 'integer)
+
 (defvar-local eslintd-fix--verified nil
   "Set to t if eslintd has been verified as working for this buffer.")
 
@@ -275,7 +280,7 @@ Return the CONNECTION if, after waiting it is open, otherwise nil."
 
 Return t if the connection closes successfully."
   (catch 'done
-    (dotimes (_ 200)
+    (dotimes (_ (truncate (/ eslintd-fix-timeout-seconds 0.01)))
       (if (eq (process-status connection) 'open)
           (accept-process-output connection 0.01 nil t)
         (throw 'done (eq (process-status connection) 'closed))))

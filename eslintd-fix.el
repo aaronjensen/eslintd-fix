@@ -40,6 +40,7 @@
 
 ;;; Code:
 (require 'dash)
+(require 'xdg) ; for `xdg-runtime-dir'
 
 (defgroup eslintd-fix nil
   "Fix javascript code with eslint_d"
@@ -55,7 +56,9 @@
   :group 'eslintd-fix
   :type 'string)
 
-(defcustom eslintd-fix-portfile "~/.eslint_d"
+(defcustom eslintd-fix-portfile
+  (let ((directory (or (xdg-runtime-dir) "~/")))
+    (expand-file-name ".eslint_d" directory))
   "The file written by eslint_d containing the port and token."
   :group 'eslintd-fix
   :type 'string)

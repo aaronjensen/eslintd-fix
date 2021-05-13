@@ -40,7 +40,7 @@
 
 ;;; Code:
 (require 'dash)
-(require 'xdg) ; for `xdg-runtime-dir'
+(require 'xdg)
 
 (defgroup eslintd-fix nil
   "Fix javascript code with eslint_d"

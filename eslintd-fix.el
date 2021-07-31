@@ -287,6 +287,9 @@ Return t if the connection closes successfully."
       (if (eq (process-status connection) 'open)
           (accept-process-output connection 0.01 nil t)
         (throw 'done (eq (process-status connection) 'closed))))
+    (message
+     (concat "eslintd-fix: Timed out waiting for output, "
+             "try increasing eslintd-fix-timeout-seconds."))
     nil))
 
 (defun eslintd-fix--get-connection ()

@@ -287,11 +287,10 @@ Return t if the connection closes successfully."
       (if (eq (process-status connection) 'open)
           (accept-process-output connection 0.01 nil t)
         (throw 'done (eq (process-status connection) 'closed))))
-    (progn
-      (message
-       (concat "eslintd-fix: Did not receive any output in time."
-               "Try increasing custom variables `eslintd-fix-timeout-seconds` value."))
-      nil)))
+    (message
+     (concat "eslintd-fix: Timed out waiting for output, "
+             "try increasing eslintd-fix-timeout-seconds."))
+    nil))
 
 (defun eslintd-fix--get-connection ()
   "Return an open connection to eslint_d.

@@ -347,6 +347,21 @@ Will open a connection if there is not one."
     ;; Open a new connection to save us time next time
     (eslintd-fix--open-connection)))
 
+(defun eslintd-fix-kill ()
+  "Kill eslint_d and revert buffer."
+  (interactive)
+  ;; Kill the system process
+  (dolist (pid (list-system-processes))
+    (when (string= (map-elt (process-attributes pid) 'args "") "eslint_d")
+      (message "Killing eslint_d process %s" pid)
+      (signal-process pid 'KILL)))
+  ;; Kill the process created by Emacs
+  (dolist (process (process-list))
+    (let ((process-name (process-name process)))
+      (when (string= process-name "eslintd-fix")
+        (delete-process process))))
+  (revert-buffer))
+
 ;;;###autoload
 (define-minor-mode eslintd-fix-mode
   "Use eslint_d to automatically fix javascript before saving."
